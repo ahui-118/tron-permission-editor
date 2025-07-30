@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>TRON 多签权限管理工具（完整版）</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tronweb3/tronwallet-adapter-tronlink"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tronweb@4.4.0/dist/TronWeb.min.js"></script>
+  <style>
+    body { font-family: sans-serif; margin: 2em; }
+    textarea, pre { width: 100%; font-family: monospace; }
+    textarea { height: 150px; }
+    button { margin-top: 10px; }
+    input[type="text"], input[type="number"] { width: 100%; margin-bottom: 0.5em; padding: 5px; }
+    .section { margin-bottom: 2em; }
+  </style>
+</head>
+<body>
+  <h1>🔐 TRON 多签权限管理工具（全功能）</h1>
+
+  <!-- 链接钱包 -->
+  <div class="section">
+    <button id="connectBtn">连接 TronLink 钱包</button>
+    <p id="walletAddress">钱包未连接</p>
+  </div>
+
+  <!-- 权限结构导入 -->
+  <div class="section">
+    <h3>📥 导入权限结构 JSON</h3>
+    <input type="file" id="jsonFile" accept=".json">
+    <pre id="jsonPreview">尚未导入权限结构</pre>
+  </div>
+
+  <!-- 权限结构编辑器 -->
+  <div class="section">
+    <h3>🧾 编辑权限结构</h3>
+    <label>阈值（Threshold）:</label>
+    <input type="number" id="threshold" min="1" value="2">
+    <label>签名地址列表（每行一个 T 地址）:</label>
+    <textarea id="addressList" placeholder="T..."></textarea>
+    <button onclick="buildStructure()">生成权限结构</button>
+    <pre id="generatedJson"></pre>
+  </div>
+
+  <!-- 签名交易 -->
+  <div class="section">
+    <h3>🖋️ 权限更新交易签名（TronLink 或私钥）</h3>
+    <button id="signBtn" disabled>使用 TronLink 签名并广播</button>
+    <br><br>
+    <label>或输入私钥签名（仅本地使用）:</label>
+    <input type="text" id="privateKey" placeholder="私钥 hex">
+    <button onclick="signWithPrivateKey()">使用私钥签名并广播</button>
+    <pre id="resultBox"></pre>
+  </div>
+
+  <!-- 链上读取 -->
+  <div class="section">
+    <h3>🌐 查看链上当前权限结构</h3>
+    <button onclick="fetchPermissions()">读取当前权限结构</button>
+    <pre id="onchainBox"></pre>
+  </div>
+
+<script>
+  let tronWeb = null;
+  let permissionJson = null;
+
+  document.getElementById('connectBtn').onclick = async () => {
+    if (window.tronLink) {
+      await window.tronLink.request({ method: 'tron_requestAccounts' });
+      tronWeb = window.tronWeb;
+      document.getElementById('walletAddress').innerText = '当前地址：' + tronWeb.defaultAddress.base58;
+      if (permissionJson) document.getElementById('signBtn').disabled = false;
+    } else {
+      alert('请先安装 TronLink 插件');
+    }
+  };
+
+  document.getElementById('jsonFile').addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const text = await file.text();
+    try {
+      permissionJson = JSON.parse(text);
+      document.getElementById('jsonPreview').textContent = JSON.stringify(permissionJson, null, 2);
+      if (tronWeb) document.getElementById('signBtn').disabled = false;
+    } catch (err) {
+      document.getElementById('jsonPreview').textContent = '❌ 无效的 JSON 文件';
+    }
+  });
+
+  async function fetchPermissions() {
+    try {
+      const addr = tronWeb.defaultAddress.base58;
+      const acc = await tronWeb.trx.getAccount(addr);
+      document.getElementById('onchainBox').textContent = JSON.stringify(acc.owner_permission || {}, null, 2);
+    } catch (e) {
+      document.getElementById('onchainBox').textContent = '❌ 读取失败: ' + e.message;
+    }
+  }
+
+  function buildStructure() {
+    const addrs = document.getElementById('addressList').value.trim().split(/\s+/);
+    const threshold = parseInt(document.getElementById('threshold').value);
+    const keys = addrs.map(addr => ({ address: addr, weight: 1 }));
+    permissionJson = {
+      owner: { permission_name: "owner", threshold, keys },
+      actives: [
+        {
+          type: "Active",
+          id: 2,
+          permission_name: "active",
+          threshold,
+          operations: "7fff1fc0033ec30f000000000000000000000000000000000000000000000000",
+          keys
+        }
+      ]
+    };
+    document.getElementById('generatedJson').textContent = JSON.stringify(permissionJson, null, 2);
+    if (tronWeb) document.getElementById('signBtn').disabled = false;
+  }
+
+  document.getElementById('signBtn').onclick = async () => {
+    try {
+      const tx = await tronWeb.transactionBuilder.updateAccountPermissions(permissionJson, tronWeb.defaultAddress.base58);
+      const signedTx = await tronWeb.trx.sign(tx);
+      const result = await tronWeb.trx.sendRawTransaction(signedTx);
+      document.getElementById('resultBox').textContent = JSON.stringify(result, null, 2);
+    } catch (e) {
+      document.getElementById('resultBox').textContent = '❌ 错误: ' + e.message;
+    }
+  };
+
+  async function signWithPrivateKey() {
+    const privateKey = document.getElementById('privateKey').value.trim();
+    if (!privateKey) return alert('请输入私钥');
+    try {
+      const tronWebLocal = new TronWeb({ fullHost: 'https://api.trongrid.io', privateKey });
+      const tx = await tronWebLocal.transactionBuilder.updateAccountPermissions(permissionJson, tronWebLocal.defaultAddress.base58);
+      const signedTx = await tronWebLocal.trx.sign(tx);
+      const receipt = await tronWebLocal.trx.sendRawTransaction(signedTx);
+      document.getElementById('resultBox').textContent = JSON.stringify(receipt, null, 2);
+    } catch (e) {
+      document.getElementById('resultBox').textContent = '❌ 错误: ' + e.message;
+    }
+  }
+</script>
+</body>
+</html>
